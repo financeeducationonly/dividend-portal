@@ -1,0 +1,1472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mutual Fund Dividend & Cashflow Analytics Portal</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- SheetJS (Excel parser & exporter) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- jsPDF & autoTable (PDF generation) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    .tab-active { border-bottom: 3px solid #2563eb; color: #2563eb; font-weight: 600; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="bg-blue-600 text-white p-2.5 rounded-xl shadow-md flex items-center justify-center">
+          <i data-lucide="trending-up" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <h1 class="text-xl font-bold text-slate-900 leading-tight">MF Dividend & Cashflow Portal</h1>
+          <p class="text-xs text-slate-500">Historical IDCW Cashflow, XIRR Return & Scheme Comparison</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button id="view-mode-btn" onclick="switchView('investor')" class="px-4 py-2 text-sm font-medium rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition flex items-center gap-2">
+          <i data-lucide="calculator" class="w-4 h-4"></i> Cashflow Calculator
+        </button>
+        <button id="admin-mode-btn" onclick="openAdminModal()" class="px-4 py-2 text-sm font-medium rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition flex items-center gap-2">
+          <i data-lucide="lock" class="w-4 h-4"></i> <span id="admin-btn-text">Admin Login</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full">
+
+    <!-- ================= INVESTOR CASHFLOW CALCULATOR VIEW ================= -->
+    <div id="investor-view" class="space-y-6">
+
+      <!-- Configuration Card -->
+      <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+        <h2 class="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+          <i data-lucide="sliders" class="w-5 h-5 text-blue-600"></i> Investment Parameters
+        </h2>
+
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-5">
+          <!-- Scheme Selection -->
+          <div class="md:col-span-5">
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Select Scheme(s)</label>
+            <div id="scheme-checkbox-list" class="max-h-44 overflow-y-auto border border-slate-200 rounded-xl p-2.5 space-y-1.5 bg-slate-50">
+              <!-- Dynamically populated -->
+            </div>
+            <p class="text-[11px] text-slate-400 mt-1">Select multiple schemes to generate comparative returns</p>
+          </div>
+
+          <!-- Investment Amount -->
+          <div class="md:col-span-3">
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Investment Amount (₹)</label>
+            <div class="relative">
+              <span class="absolute left-3 top-2.5 text-slate-400 font-semibold">₹</span>
+              <input type="number" id="invest-amount" value="500000" min="1000" step="5000" class="w-full pl-8 pr-3 py-2.5 border border-slate-200 rounded-xl font-semibold text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+            <div class="flex gap-1.5 mt-2">
+              <button onclick="setAmount(100000)" class="text-[11px] bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded text-slate-600 font-medium">1L</button>
+              <button onclick="setAmount(500000)" class="text-[11px] bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded text-slate-600 font-medium">5L</button>
+              <button onclick="setAmount(1000000)" class="text-[11px] bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded text-slate-600 font-medium">10L</button>
+              <button onclick="setAmount(2500000)" class="text-[11px] bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded text-slate-600 font-medium">25L</button>
+            </div>
+          </div>
+
+          <!-- Investment Horizon Buttons -->
+          <div class="md:col-span-4">
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Investment Horizon (Select Any One)</label>
+            <div class="grid grid-cols-5 gap-1.5" id="tenure-buttons">
+              <button onclick="setHorizon(1)" class="tenure-btn px-2 py-2 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-blue-50 hover:border-blue-300">1Y</button>
+              <button onclick="setHorizon(2)" class="tenure-btn px-2 py-2 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-blue-50 hover:border-blue-300">2Y</button>
+              <button onclick="setHorizon(3)" class="tenure-btn px-2 py-2 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-blue-50 hover:border-blue-300">3Y</button>
+              <button onclick="setHorizon(5)" class="tenure-btn px-2 py-2 text-xs font-semibold rounded-lg border border-blue-600 bg-blue-600 text-white">5Y</button>
+              <button onclick="setHorizon(7)" class="tenure-btn px-2 py-2 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-blue-50 hover:border-blue-300">7Y</button>
+              <button onclick="setHorizon(10)" class="tenure-btn px-2 py-2 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-blue-50 hover:border-blue-300">10Y</button>
+              <button onclick="setHorizon(15)" class="tenure-btn px-2 py-2 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-blue-50 hover:border-blue-300">15Y</button>
+              <button onclick="setHorizon(20)" class="tenure-btn px-2 py-2 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-blue-50 hover:border-blue-300">20Y</button>
+              <button onclick="setHorizon(25)" class="tenure-btn px-2 py-2 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-blue-50 hover:border-blue-300">25Y</button>
+              <button onclick="setHorizon('inception')" class="tenure-btn px-2 py-2 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-blue-50 hover:border-blue-300">Inception</button>
+            </div>
+            <div class="mt-2.5 flex items-center gap-2">
+              <span class="text-xs text-slate-500 font-medium">Or Custom Start Date:</span>
+              <input type="date" id="custom-start-date" onchange="setCustomStartDate()" class="px-2 py-1 text-xs border border-slate-200 rounded-lg text-slate-700">
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-5 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+          <div id="selected-summary-badge" class="text-xs font-medium text-slate-500 flex items-center gap-2">
+            <!-- Active filter badge -->
+          </div>
+          <button onclick="generateReport()" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl shadow-md transition flex items-center gap-2">
+            <i data-lucide="play" class="w-4 h-4 fill-current"></i> Generate Cashflow Report
+          </button>
+        </div>
+      </div>
+
+      <!-- Comparison Section (Shown if 2+ schemes selected) -->
+      <div id="comparison-section" class="hidden bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+            <i data-lucide="scale" class="w-5 h-5 text-indigo-600"></i> Multi-Scheme Comparative Performance
+          </h2>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-sm">
+            <thead>
+              <tr class="bg-slate-50 border-y border-slate-200 text-slate-600 font-semibold text-xs uppercase">
+                <th class="py-3 px-4">Scheme Name</th>
+                <th class="py-3 px-4 text-right">Investment</th>
+                <th class="py-3 px-4 text-right">Start NAV</th>
+                <th class="py-3 px-4 text-right">Units Held</th>
+                <th class="py-3 px-4 text-right">Total Dividends</th>
+                <th class="py-3 px-4 text-right">Current NAV</th>
+                <th class="py-3 px-4 text-right">Fund Value</th>
+                <th class="py-3 px-4 text-right">Total Return</th>
+                <th class="py-3 px-4 text-right">Profit / Gain</th>
+                <th class="py-3 px-4 text-right">XIRR %</th>
+              </tr>
+            </thead>
+            <tbody id="comparison-table-body" class="divide-y divide-slate-100 font-medium">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Single Scheme Detailed Report Container -->
+      <div id="report-container" class="space-y-6">
+        <!-- Rendered dynamically -->
+      </div>
+
+    </div>
+
+    <!-- ================= ADMIN DATA MANAGEMENT VIEW ================= -->
+    <div id="admin-view" class="hidden space-y-6">
+      
+      <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+        <div class="flex flex-wrap items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-100">
+          <div>
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 mb-1">
+              <i data-lucide="shield-check" class="w-3.5 h-3.5"></i> Admin Control Panel
+            </span>
+            <h2 class="text-xl font-bold text-slate-900">Scheme Master & Historical Data Management</h2>
+            <p class="text-xs text-slate-500">Update schemes, daily NAVs, and dividend records via manual entry or Excel/CSV import</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="exportDatabaseJSON()" class="px-3.5 py-2 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 flex items-center gap-1.5">
+              <i data-lucide="download" class="w-4 h-4"></i> Backup Data (JSON)
+            </button>
+            <label class="px-3.5 py-2 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 flex items-center gap-1.5 cursor-pointer">
+              <i data-lucide="upload" class="w-4 h-4"></i> Restore JSON
+              <input type="file" accept=".json" onchange="importDatabaseJSON(event)" class="hidden">
+            </label>
+            <button onclick="logoutAdmin()" class="px-3.5 py-2 text-xs font-semibold rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 flex items-center gap-1.5">
+              <i data-lucide="log-out" class="w-4 h-4"></i> Logout
+            </button>
+          </div>
+        </div>
+
+        <!-- Admin Tabs -->
+        <div class="flex border-b border-slate-200 space-x-6 text-sm font-medium mb-6">
+          <button id="admin-tab-scheme" onclick="switchAdminTab('schemes')" class="pb-3 tab-active flex items-center gap-2">
+            <i data-lucide="layers" class="w-4 h-4"></i> Schemes Master (<span id="admin-scheme-count">0</span>)
+          </button>
+          <button id="admin-tab-nav" onclick="switchAdminTab('nav')" class="pb-3 text-slate-500 hover:text-slate-800 flex items-center gap-2">
+            <i data-lucide="line-chart" class="w-4 h-4"></i> Daily NAV Data
+          </button>
+          <button id="admin-tab-dividend" onclick="switchAdminTab('dividends')" class="pb-3 text-slate-500 hover:text-slate-800 flex items-center gap-2">
+            <i data-lucide="coins" class="w-4 h-4"></i> Dividend Records
+          </button>
+        </div>
+
+        <!-- Admin Tab 1: Scheme Management -->
+        <div id="admin-panel-schemes" class="space-y-6">
+          <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <h3 class="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+              <i data-lucide="plus-circle" class="w-4 h-4 text-blue-600"></i> Add New Mutual Fund Scheme
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div>
+                <label class="text-xs text-slate-600 font-medium">Scheme Name</label>
+                <input type="text" id="new-scheme-name" placeholder="e.g. ICICI Prudential Equity & Debt Fund - IDCW" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg outline-none focus:border-blue-500">
+              </div>
+              <div>
+                <label class="text-xs text-slate-600 font-medium">Category</label>
+                <input type="text" id="new-scheme-cat" placeholder="e.g. Aggressive Hybrid" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg outline-none focus:border-blue-500">
+              </div>
+              <div>
+                <label class="text-xs text-slate-600 font-medium">Inception Date</label>
+                <input type="date" id="new-scheme-inception" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg outline-none focus:border-blue-500">
+              </div>
+              <div class="flex items-end">
+                <button onclick="addScheme()" class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg text-xs flex items-center justify-center gap-1.5 shadow-sm">
+                  <i data-lucide="save" class="w-4 h-4"></i> Save Scheme
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Existing Schemes List -->
+          <div>
+            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Registered Schemes</h4>
+            <div class="overflow-x-auto border border-slate-200 rounded-xl">
+              <table class="w-full text-left text-xs border-collapse">
+                <thead class="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200">
+                  <tr>
+                    <th class="p-3">Scheme Name</th>
+                    <th class="p-3">Category</th>
+                    <th class="p-3">Inception</th>
+                    <th class="p-3">NAV Count</th>
+                    <th class="p-3">Dividend Count</th>
+                    <th class="p-3 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-scheme-tbody" class="divide-y divide-slate-100 font-medium text-slate-700">
+                  <!-- Populated -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Admin Tab 2: Daily NAV Management -->
+        <div id="admin-panel-nav" class="hidden space-y-6">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Manual Add Single NAV -->
+            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+              <h3 class="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+                <i data-lucide="edit-3" class="w-4 h-4 text-blue-600"></i> Add Single NAV Entry
+              </h3>
+              <div class="space-y-3">
+                <div>
+                  <label class="text-xs text-slate-600 font-medium">Select Scheme</label>
+                  <select id="single-nav-scheme" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg outline-none"></select>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label class="text-xs text-slate-600 font-medium">Date</label>
+                    <input type="date" id="single-nav-date" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg outline-none">
+                  </div>
+                  <div>
+                    <label class="text-xs text-slate-600 font-medium">NAV (₹)</label>
+                    <input type="number" step="0.0001" id="single-nav-val" placeholder="e.g. 35.42" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg outline-none">
+                  </div>
+                </div>
+                <button onclick="addSingleNAV()" class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg text-xs flex items-center justify-center gap-1.5">
+                  <i data-lucide="plus" class="w-4 h-4"></i> Add NAV
+                </button>
+              </div>
+            </div>
+
+            <!-- Bulk Import from Excel/CSV -->
+            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+              <div class="flex items-center justify-between mb-3">
+                <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+                  <i data-lucide="file-spreadsheet" class="w-4 h-4 text-emerald-600"></i> Bulk Import NAV (Excel/CSV)
+                </h3>
+                <button onclick="downloadSampleNavExcel()" class="text-[11px] text-blue-600 hover:underline flex items-center gap-1">
+                  <i data-lucide="download" class="w-3 h-3"></i> Sample Template
+                </button>
+              </div>
+              <div class="space-y-3">
+                <div>
+                  <label class="text-xs text-slate-600 font-medium">Select Scheme to Update</label>
+                  <select id="bulk-nav-scheme" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg outline-none"></select>
+                </div>
+                <div>
+                  <label class="text-xs text-slate-600 font-medium">Upload File (Columns: <code>Date</code>, <code>NAV</code>)</label>
+                  <input type="file" id="bulk-nav-file" accept=".xlsx, .xls, .csv" class="w-full text-xs text-slate-500 file:mr-2 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer">
+                </div>
+                <button onclick="handleBulkNavImport()" class="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg text-xs flex items-center justify-center gap-1.5">
+                  <i data-lucide="upload-cloud" class="w-4 h-4"></i> Import NAV Records
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- NAV Table Preview -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500">NAV History Preview</h4>
+              <select id="filter-nav-preview-scheme" onchange="renderNavPreviewTable()" class="px-2 py-1 text-xs border border-slate-200 rounded-lg"></select>
+            </div>
+            <div class="max-h-60 overflow-y-auto border border-slate-200 rounded-xl">
+              <table class="w-full text-left text-xs border-collapse">
+                <thead class="bg-slate-100 text-slate-600 sticky top-0 font-semibold border-b border-slate-200">
+                  <tr>
+                    <th class="p-2.5">Date</th>
+                    <th class="p-2.5 text-right">NAV (₹)</th>
+                    <th class="p-2.5 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-nav-tbody" class="divide-y divide-slate-100 font-mono text-slate-700"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Admin Tab 3: Dividend History Management -->
+        <div id="admin-panel-dividends" class="hidden space-y-6">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Manual Add Single Dividend -->
+            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+              <h3 class="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+                <i data-lucide="coins" class="w-4 h-4 text-amber-600"></i> Add Single Dividend Record
+              </h3>
+              <div class="space-y-3">
+                <div>
+                  <label class="text-xs text-slate-600 font-medium">Select Scheme</label>
+                  <select id="single-div-scheme" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg outline-none"></select>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label class="text-xs text-slate-600 font-medium">Record Date</label>
+                    <input type="date" id="single-div-date" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg outline-none">
+                  </div>
+                  <div>
+                    <label class="text-xs text-slate-600 font-medium">Dividend/Unit (₹)</label>
+                    <input type="number" step="0.001" id="single-div-val" placeholder="e.g. 0.45" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg outline-none">
+                  </div>
+                </div>
+                <button onclick="addSingleDividend()" class="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white font-medium rounded-lg text-xs flex items-center justify-center gap-1.5">
+                  <i data-lucide="plus" class="w-4 h-4"></i> Add Dividend Record
+                </button>
+              </div>
+            </div>
+
+            <!-- Bulk Import Dividends from Excel/CSV -->
+            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+              <div class="flex items-center justify-between mb-3">
+                <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+                  <i data-lucide="file-spreadsheet" class="w-4 h-4 text-emerald-600"></i> Bulk Import Dividends (Excel/CSV)
+                </h3>
+                <button onclick="downloadSampleDivExcel()" class="text-[11px] text-blue-600 hover:underline flex items-center gap-1">
+                  <i data-lucide="download" class="w-3 h-3"></i> Sample Template
+                </button>
+              </div>
+              <div class="space-y-3">
+                <div>
+                  <label class="text-xs text-slate-600 font-medium">Select Scheme to Update</label>
+                  <select id="bulk-div-scheme" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg outline-none"></select>
+                </div>
+                <div>
+                  <label class="text-xs text-slate-600 font-medium">Upload File (Columns: <code>Date</code>, <code>DividendPerUnit</code>)</label>
+                  <input type="file" id="bulk-div-file" accept=".xlsx, .xls, .csv" class="w-full text-xs text-slate-500 file:mr-2 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer">
+                </div>
+                <button onclick="handleBulkDivImport()" class="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg text-xs flex items-center justify-center gap-1.5">
+                  <i data-lucide="upload-cloud" class="w-4 h-4"></i> Import Dividend Records
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dividend Table Preview -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500">Dividend History Preview</h4>
+              <select id="filter-div-preview-scheme" onchange="renderDivPreviewTable()" class="px-2 py-1 text-xs border border-slate-200 rounded-lg"></select>
+            </div>
+            <div class="max-h-60 overflow-y-auto border border-slate-200 rounded-xl">
+              <table class="w-full text-left text-xs border-collapse">
+                <thead class="bg-slate-100 text-slate-600 sticky top-0 font-semibold border-b border-slate-200">
+                  <tr>
+                    <th class="p-2.5">Date</th>
+                    <th class="p-2.5 text-right">Dividend Per Unit (₹)</th>
+                    <th class="p-2.5 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-div-tbody" class="divide-y divide-slate-100 font-mono text-slate-700"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Admin Login Modal -->
+  <div id="admin-login-modal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200">
+      <div class="text-center mb-5">
+        <div class="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-3">
+          <i data-lucide="shield" class="w-6 h-6"></i>
+        </div>
+        <h3 class="text-lg font-bold text-slate-900">Administrator Access</h3>
+        <p class="text-xs text-slate-500">Only authorized persons can add or modify scheme data</p>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Enter Admin PIN / Password</label>
+          <input type="password" id="admin-password-input" placeholder="Default: admin123" class="w-full px-3.5 py-2.5 text-sm border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-slate-900">
+          <p class="text-[11px] text-slate-400 mt-1">Default password is: <b>admin123</b></p>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="closeAdminModal()" class="w-1/2 py-2.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl">Cancel</button>
+          <button onclick="verifyAdminPassword()" class="w-1/2 py-2.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm">Login</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-400 mt-auto">
+    <p>Mutual Fund Dividend Cashflow Portal &bull; Free & Open Source &bull; Hosted on GitHub Pages</p>
+  </footer>
+
+  <!-- ================= JAVASCRIPT LOGIC ================= -->
+  <script>
+    /* ---------- DEFAULT SAMPLE DATA (Real-world pattern) ---------- */
+    const DEFAULT_DATA = {
+      schemes: [
+        {
+          id: "sch-1",
+          name: "ICICI Prudential Equity & Debt Fund - IDCW",
+          category: "Aggressive Hybrid",
+          inceptionDate: "2004-11-03",
+          navs: [
+            { date: "2004-11-03", nav: 10.00 },
+            { date: "2019-10-15", nav: 24.12 },
+            { date: "2021-10-15", nav: 30.55 },
+            { date: "2023-10-15", nav: 34.80 },
+            { date: "2024-10-15", nav: 38.65 },
+            { date: "2025-10-15", nav: 42.10 },
+            { date: "2026-10-15", nav: 46.50 }
+          ],
+          dividends: [
+            { date: "2020-03-20", perUnit: 0.22 },
+            { date: "2020-09-18", perUnit: 0.24 },
+            { date: "2021-03-22", perUnit: 0.25 },
+            { date: "2021-09-24", perUnit: 0.28 },
+            { date: "2022-03-18", perUnit: 0.30 },
+            { date: "2022-09-23", perUnit: 0.32 },
+            { date: "2023-03-24", perUnit: 0.35 },
+            { date: "2023-09-22", perUnit: 0.36 },
+            { date: "2024-03-22", perUnit: 0.40 },
+            { date: "2024-09-20", perUnit: 0.42 },
+            { date: "2025-03-21", perUnit: 0.45 },
+            { date: "2025-09-19", perUnit: 0.48 },
+            { date: "2026-03-20", perUnit: 0.50 }
+          ]
+        },
+        {
+          id: "sch-2",
+          name: "HDFC Balanced Advantage Fund - IDCW",
+          category: "Dynamic Asset Allocation",
+          inceptionDate: "2000-09-11",
+          navs: [
+            { date: "2000-09-11", nav: 10.00 },
+            { date: "2019-10-15", nav: 26.50 },
+            { date: "2021-10-15", nav: 32.80 },
+            { date: "2023-10-15", nav: 37.10 },
+            { date: "2024-10-15", nav: 41.25 },
+            { date: "2025-10-15", nav: 45.80 },
+            { date: "2026-10-15", nav: 50.40 }
+          ],
+          dividends: [
+            { date: "2020-02-25", perUnit: 0.25 },
+            { date: "2020-08-25", perUnit: 0.25 },
+            { date: "2021-02-25", perUnit: 0.28 },
+            { date: "2021-08-25", perUnit: 0.30 },
+            { date: "2022-02-25", perUnit: 0.32 },
+            { date: "2022-08-25", perUnit: 0.35 },
+            { date: "2023-02-27", perUnit: 0.38 },
+            { date: "2023-08-25", perUnit: 0.40 },
+            { date: "2024-02-26", perUnit: 0.42 },
+            { date: "2024-08-26", perUnit: 0.45 },
+            { date: "2025-02-25", perUnit: 0.50 },
+            { date: "2025-08-25", perUnit: 0.52 },
+            { date: "2026-02-25", perUnit: 0.55 }
+          ]
+        },
+        {
+          id: "sch-3",
+          name: "SBI Bluechip Fund - Regular IDCW",
+          category: "Large Cap",
+          inceptionDate: "2006-02-14",
+          navs: [
+            { date: "2006-02-14", nav: 10.00 },
+            { date: "2019-10-15", nav: 28.10 },
+            { date: "2021-10-15", nav: 36.40 },
+            { date: "2023-10-15", nav: 42.10 },
+            { date: "2024-10-15", nav: 48.70 },
+            { date: "2025-10-15", nav: 54.30 },
+            { date: "2026-10-15", nav: 61.20 }
+          ],
+          dividends: [
+            { date: "2020-03-10", perUnit: 0.50 },
+            { date: "2021-03-15", perUnit: 0.65 },
+            { date: "2022-03-18", perUnit: 0.75 },
+            { date: "2023-03-15", perUnit: 0.85 },
+            { date: "2024-03-14", perUnit: 1.00 },
+            { date: "2025-03-18", perUnit: 1.15 },
+            { date: "2026-03-17", perUnit: 1.25 }
+          ]
+        }
+      ]
+    };
+
+    /* ---------- APP STATE ---------- */
+    let appData = loadData();
+    let isAdmin = false;
+    let selectedHorizon = 5; // Default 5 years
+    let customStartDate = null;
+    let lastGeneratedReports = [];
+
+    function loadData() {
+      const stored = localStorage.getItem('MF_PORTAL_DATA');
+      if (stored) {
+        try { return JSON.parse(stored); } catch(e) {}
+      }
+      return DEFAULT_DATA;
+    }
+
+    function saveData() {
+      localStorage.setItem('MF_PORTAL_DATA', JSON.stringify(appData));
+    }
+
+    /* ---------- INITIALIZATION ---------- */
+    window.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      populateSchemeCheckboxes();
+      updateBadge();
+      updateAdminSelects();
+      generateReport();
+    });
+
+    function populateSchemeCheckboxes() {
+      const container = document.getElementById('scheme-checkbox-list');
+      container.innerHTML = '';
+      appData.schemes.forEach((sch, idx) => {
+        const div = document.createElement('div');
+        div.className = "flex items-center gap-2.5 p-1.5 rounded hover:bg-white text-xs text-slate-800 transition cursor-pointer";
+        div.innerHTML = `
+          <input type="checkbox" id="chk-${sch.id}" value="${sch.id}" ${idx === 0 ? 'checked' : ''} onchange="updateBadge()" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
+          <label for="chk-${sch.id}" class="cursor-pointer flex-1 flex items-center justify-between">
+            <span class="font-medium">${sch.name}</span>
+            <span class="text-[10px] text-slate-400 bg-slate-200/60 px-1.5 py-0.5 rounded">${sch.category}</span>
+          </label>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    function getSelectedSchemeIds() {
+      const checked = document.querySelectorAll('#scheme-checkbox-list input[type="checkbox"]:checked');
+      return Array.from(checked).map(c => c.value);
+    }
+
+    function setAmount(val) {
+      document.getElementById('invest-amount').value = val;
+    }
+
+    function setHorizon(val) {
+      selectedHorizon = val;
+      customStartDate = null;
+      document.getElementById('custom-start-date').value = '';
+      
+      document.querySelectorAll('.tenure-btn').forEach(btn => {
+        btn.classList.remove('bg-blue-600', 'text-white', 'border-blue-600');
+        btn.classList.add('bg-white', 'text-slate-700', 'border-slate-200');
+      });
+      event.target.classList.remove('bg-white', 'text-slate-700', 'border-slate-200');
+      event.target.classList.add('bg-blue-600', 'text-white', 'border-blue-600');
+      
+      updateBadge();
+    }
+
+    function setCustomStartDate() {
+      const val = document.getElementById('custom-start-date').value;
+      if (val) {
+        customStartDate = val;
+        selectedHorizon = 'custom';
+        document.querySelectorAll('.tenure-btn').forEach(btn => {
+          btn.classList.remove('bg-blue-600', 'text-white', 'border-blue-600');
+          btn.classList.add('bg-white', 'text-slate-700', 'border-slate-200');
+        });
+        updateBadge();
+      }
+    }
+
+    function updateBadge() {
+      const ids = getSelectedSchemeIds();
+      const badge = document.getElementById('selected-summary-badge');
+      const tenureText = selectedHorizon === 'inception' ? 'Since Inception' :
+                         selectedHorizon === 'custom' ? `From ${customStartDate}` : `${selectedHorizon} Years`;
+      badge.innerHTML = `
+        <span class="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md font-semibold">${ids.length} Scheme(s) selected</span>
+        <span class="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-md">Horizon: <b>${tenureText}</b></span>
+      `;
+    }
+
+    /* ---------- DATE HELPERS ---------- */
+    function getStartDate(scheme, horizon) {
+      if (horizon === 'custom' && customStartDate) return customStartDate;
+      if (horizon === 'inception') return scheme.inceptionDate;
+      
+      // Horizon in years backwards from current or latest available NAV date
+      const latestNavDate = scheme.navs.length > 0 ? new Date(scheme.navs[scheme.navs.length - 1].date) : new Date();
+      const d = new Date(latestNavDate);
+      d.setFullYear(d.getFullYear() - parseInt(horizon));
+      
+      const incept = new Date(scheme.inceptionDate);
+      if (d < incept) return scheme.inceptionDate; // Cap to inception
+      return d.toISOString().split('T')[0];
+    }
+
+    // Closest NAV on or right after target date
+    function getNearestNAV(scheme, targetDateStr) {
+      if (!scheme.navs || scheme.navs.length === 0) return 10.0;
+      const sorted = [...scheme.navs].sort((a,b) => new Date(a.date) - new Date(b.date));
+      const targetTime = new Date(targetDateStr).getTime();
+      
+      // Find exact or closest after
+      let match = sorted.find(n => new Date(n.date).getTime() >= targetTime);
+      if (match) return match.nav;
+      return sorted[sorted.length - 1].nav;
+    }
+
+    function getLatestNAV(scheme) {
+      if (!scheme.navs || scheme.navs.length === 0) return { date: 'N/A', nav: 10.0 };
+      const sorted = [...scheme.navs].sort((a,b) => new Date(a.date) - new Date(b.date));
+      return sorted[sorted.length - 1];
+    }
+
+    /* ---------- XIRR CALCULATION (Newton-Raphson Method) ---------- */
+    function calculateXIRR(cashFlows) {
+      // cashFlows: [{ date: 'YYYY-MM-DD', amount: -500000 }, { date: 'YYYY-MM-DD', amount: 2000 }, ...]
+      if (cashFlows.length < 2) return 0;
+      
+      let hasPos = cashFlows.some(c => c.amount > 0);
+      let hasNeg = cashFlows.some(c => c.amount < 0);
+      if (!hasPos || !hasNeg) return 0;
+
+      const d0 = new Date(cashFlows[0].date).getTime();
+      const dates = cashFlows.map(c => (new Date(c.date).getTime() - d0) / (1000 * 60 * 60 * 24 * 365.25));
+      const amounts = cashFlows.map(c => c.amount);
+
+      let rate = 0.1; // initial guess: 10%
+      const maxIter = 100;
+      const tol = 1e-6;
+
+      for (let i = 0; i < maxIter; i++) {
+        let f = 0;
+        let df = 0;
+        for (let j = 0; j < amounts.length; j++) {
+          const t = dates[j];
+          const factor = Math.pow(1 + rate, t);
+          f += amounts[j] / factor;
+          df -= (t * amounts[j]) / (factor * (1 + rate));
+        }
+
+        if (Math.abs(df) < 1e-12) break;
+        const newRate = rate - f / df;
+        if (Math.abs(newRate - rate) < tol) {
+          return newRate * 100;
+        }
+        rate = newRate;
+        if (rate <= -0.99) rate = -0.9;
+      }
+      return rate * 100;
+    }
+
+    /* ---------- CORE REPORT GENERATOR ---------- */
+    function generateReport() {
+      const selectedIds = getSelectedSchemeIds();
+      if (selectedIds.length === 0) {
+        alert("Please select at least one scheme!");
+        return;
+      }
+
+      const investAmount = parseFloat(document.getElementById('invest-amount').value) || 100000;
+      lastGeneratedReports = [];
+
+      selectedIds.forEach(id => {
+        const sch = appData.schemes.find(s => s.id === id);
+        if (!sch) return;
+
+        const startDate = getStartDate(sch, selectedHorizon);
+        const startNav = getNearestNAV(sch, startDate);
+        const units = investAmount / startNav;
+        const latestNavObj = getLatestNAV(sch);
+        const finalFundValue = units * latestNavObj.nav;
+
+        // Filter dividends between startDate and latestNavObj.date
+        const filteredDivs = (sch.dividends || [])
+          .filter(d => d.date >= startDate && d.date <= latestNavObj.date)
+          .sort((a,b) => new Date(a.date) - new Date(b.date));
+
+        let totalDividends = 0;
+        let cashflows = [];
+        let detailedTableRows = [];
+
+        // 1. Initial Investment (Cash Outflow)
+        cashflows.push({ date: startDate, amount: -investAmount });
+        detailedTableRows.push({
+          date: startDate,
+          event: "Initial Investment",
+          nav: startNav,
+          unitsAllotted: units,
+          balanceUnits: units,
+          divPerUnit: null,
+          cashFlow: -investAmount,
+          cumDividend: 0,
+          fundValue: investAmount
+        });
+
+        // 2. Dividend Payouts (Cash Inflows)
+        filteredDivs.forEach(div => {
+          const divPayout = units * div.perUnit;
+          totalDividends += divPayout;
+          cashflows.push({ date: div.date, amount: divPayout });
+          
+          const interimNav = getNearestNAV(sch, div.date);
+          detailedTableRows.push({
+            date: div.date,
+            event: "Dividend Payout (IDCW)",
+            nav: interimNav,
+            unitsAllotted: 0,
+            balanceUnits: units,
+            divPerUnit: div.perUnit,
+            cashFlow: divPayout,
+            cumDividend: totalDividends,
+            fundValue: units * interimNav
+          });
+        });
+
+        // 3. Terminal Portfolio Value (Cash Inflow on redemption)
+        cashflows.push({ date: latestNavObj.date, amount: finalFundValue });
+        detailedTableRows.push({
+          date: latestNavObj.date,
+          event: "Current Portfolio Valuation",
+          nav: latestNavObj.nav,
+          unitsAllotted: 0,
+          balanceUnits: units,
+          divPerUnit: null,
+          cashFlow: finalFundValue,
+          cumDividend: totalDividends,
+          fundValue: finalFundValue
+        });
+
+        const totalReturns = totalDividends + finalFundValue;
+        const netProfit = totalReturns - investAmount;
+        const absReturn = (netProfit / investAmount) * 100;
+        const xirr = calculateXIRR(cashflows);
+
+        lastGeneratedReports.push({
+          scheme: sch,
+          investAmount,
+          startDate,
+          endDate: latestNavObj.date,
+          startNav,
+          endNav: latestNavObj.nav,
+          units,
+          totalDividends,
+          finalFundValue,
+          totalReturns,
+          netProfit,
+          absReturn,
+          xirr,
+          detailedTableRows
+        });
+      });
+
+      renderComparisonSection();
+      renderReports();
+      lucide.createIcons();
+    }
+
+    /* ---------- RENDER COMPARISON ---------- */
+    function renderComparisonSection() {
+      const compDiv = document.getElementById('comparison-section');
+      const tbody = document.getElementById('comparison-table-body');
+      tbody.innerHTML = '';
+
+      if (lastGeneratedReports.length > 1) {
+        compDiv.classList.remove('hidden');
+        lastGeneratedReports.forEach(rep => {
+          const tr = document.createElement('tr');
+          tr.className = "hover:bg-slate-50 transition border-b border-slate-100";
+          tr.innerHTML = `
+            <td class="py-3 px-4 font-bold text-slate-900">${rep.scheme.name}</td>
+            <td class="py-3 px-4 text-right">₹${rep.investAmount.toLocaleString('en-IN')}</td>
+            <td class="py-3 px-4 text-right">₹${rep.startNav.toFixed(2)}</td>
+            <td class="py-3 px-4 text-right">${rep.units.toFixed(2)}</td>
+            <td class="py-3 px-4 text-right text-amber-600 font-semibold">₹${Math.round(rep.totalDividends).toLocaleString('en-IN')}</td>
+            <td class="py-3 px-4 text-right">₹${rep.endNav.toFixed(2)}</td>
+            <td class="py-3 px-4 text-right text-blue-600 font-semibold">₹${Math.round(rep.finalFundValue).toLocaleString('en-IN')}</td>
+            <td class="py-3 px-4 text-right font-bold">₹${Math.round(rep.totalReturns).toLocaleString('en-IN')}</td>
+            <td class="py-3 px-4 text-right text-emerald-600 font-semibold">+₹${Math.round(rep.netProfit).toLocaleString('en-IN')} (${rep.absReturn.toFixed(1)}%)</td>
+            <td class="py-3 px-4 text-right text-emerald-700 font-bold bg-emerald-50">${rep.xirr.toFixed(2)}%</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } else {
+        compDiv.classList.add('hidden');
+      }
+    }
+
+    /* ---------- RENDER REPORTS ---------- */
+    function renderReports() {
+      const container = document.getElementById('report-container');
+      container.innerHTML = '';
+
+      lastGeneratedReports.forEach((rep, index) => {
+        const div = document.createElement('div');
+        div.className = "bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-6";
+        div.innerHTML = `
+          <!-- Scheme Header & Actions -->
+          <div class="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-100">
+            <div>
+              <div class="flex items-center gap-2 mb-1">
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">${rep.scheme.category}</span>
+                <span class="text-xs text-slate-400">Inception: ${rep.scheme.inceptionDate}</span>
+              </div>
+              <h3 class="text-xl font-bold text-slate-900">${rep.scheme.name}</h3>
+              <p class="text-xs text-slate-500">Period: <b>${rep.startDate}</b> to <b>${rep.endDate}</b></p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button onclick="exportToExcel(${index})" class="px-3.5 py-2 text-xs font-semibold rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition flex items-center gap-1.5 shadow-sm">
+                <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Export to Excel
+              </button>
+              <button onclick="exportToPDF(${index})" class="px-3.5 py-2 text-xs font-semibold rounded-xl bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 transition flex items-center gap-1.5 shadow-sm">
+                <i data-lucide="file-text" class="w-4 h-4"></i> Export to PDF
+              </button>
+            </div>
+          </div>
+
+          <!-- Summary Metric Cards -->
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+              <p class="text-[11px] font-semibold text-slate-500 uppercase">Initial Investment</p>
+              <p class="text-base font-bold text-slate-900 mt-1">₹${rep.investAmount.toLocaleString('en-IN')}</p>
+              <p class="text-[11px] text-slate-400">@ NAV ₹${rep.startNav.toFixed(2)}</p>
+            </div>
+            <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+              <p class="text-[11px] font-semibold text-slate-500 uppercase">Units Allotted</p>
+              <p class="text-base font-bold text-slate-900 mt-1">${rep.units.toFixed(3)}</p>
+              <p class="text-[11px] text-slate-400">Fixed Units</p>
+            </div>
+            <div class="bg-amber-50 p-3.5 rounded-xl border border-amber-200">
+              <p class="text-[11px] font-semibold text-amber-700 uppercase">Total Dividends</p>
+              <p class="text-base font-bold text-amber-900 mt-1">₹${Math.round(rep.totalDividends).toLocaleString('en-IN')}</p>
+              <p class="text-[11px] text-amber-600">${((rep.totalDividends / rep.investAmount) * 100).toFixed(1)}% of Capital</p>
+            </div>
+            <div class="bg-blue-50 p-3.5 rounded-xl border border-blue-200">
+              <p class="text-[11px] font-semibold text-blue-700 uppercase">Current Fund Value</p>
+              <p class="text-base font-bold text-blue-900 mt-1">₹${Math.round(rep.finalFundValue).toLocaleString('en-IN')}</p>
+              <p class="text-[11px] text-blue-600">@ NAV ₹${rep.endNav.toFixed(2)}</p>
+            </div>
+            <div class="bg-emerald-50 p-3.5 rounded-xl border border-emerald-200">
+              <p class="text-[11px] font-semibold text-emerald-700 uppercase">Total Value (Div + NAV)</p>
+              <p class="text-base font-bold text-emerald-900 mt-1">₹${Math.round(rep.totalReturns).toLocaleString('en-IN')}</p>
+              <p class="text-[11px] text-emerald-600">+₹${Math.round(rep.netProfit).toLocaleString('en-IN')}</p>
+            </div>
+            <div class="bg-indigo-50 p-3.5 rounded-xl border border-indigo-200">
+              <p class="text-[11px] font-semibold text-indigo-700 uppercase">Annualized Return (XIRR)</p>
+              <p class="text-lg font-extrabold text-indigo-900 mt-0.5">${rep.xirr.toFixed(2)}%</p>
+              <p class="text-[11px] text-indigo-600">Abs Return: ${rep.absReturn.toFixed(1)}%</p>
+            </div>
+          </div>
+
+          <!-- Cashflow Table -->
+          <div>
+            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3 flex items-center gap-1.5">
+              <i data-lucide="receipt" class="w-4 h-4 text-blue-600"></i> Detailed Transaction & Cashflow Schedule
+            </h4>
+            <div class="overflow-x-auto border border-slate-200 rounded-xl">
+              <table class="w-full text-left text-xs border-collapse">
+                <thead class="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200">
+                  <tr>
+                    <th class="py-2.5 px-3">Date</th>
+                    <th class="py-2.5 px-3">Transaction / Event</th>
+                    <th class="py-2.5 px-3 text-right">NAV (₹)</th>
+                    <th class="py-2.5 px-3 text-right">Dividend/Unit (₹)</th>
+                    <th class="py-2.5 px-3 text-right">Units</th>
+                    <th class="py-2.5 px-3 text-right">Cash Inflow / Outflow (₹)</th>
+                    <th class="py-2.5 px-3 text-right">Cumulative Dividends (₹)</th>
+                    <th class="py-2.5 px-3 text-right">Fund Value (₹)</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 font-medium text-slate-700">
+                  ${rep.detailedTableRows.map(row => `
+                    <tr class="hover:bg-slate-50 transition ${row.cashFlow < 0 ? 'bg-rose-50/40' : row.event.includes('Current') ? 'bg-blue-50/40 font-semibold' : ''}">
+                      <td class="py-2 px-3 font-mono text-slate-600">${row.date}</td>
+                      <td class="py-2 px-3">
+                        <span class="inline-flex items-center gap-1">
+                          ${row.cashFlow < 0 ? '<span class="w-2 h-2 rounded-full bg-rose-500"></span>' : row.event.includes('Dividend') ? '<span class="w-2 h-2 rounded-full bg-amber-500"></span>' : '<span class="w-2 h-2 rounded-full bg-blue-500"></span>'}
+                          ${row.event}
+                        </span>
+                      </td>
+                      <td class="py-2 px-3 text-right font-mono">${row.nav.toFixed(2)}</td>
+                      <td class="py-2 px-3 text-right font-mono text-amber-700">${row.divPerUnit !== null ? '₹' + row.divPerUnit.toFixed(3) : '-'}</td>
+                      <td class="py-2 px-3 text-right font-mono">${row.balanceUnits.toFixed(2)}</td>
+                      <td class="py-2 px-3 text-right font-mono font-bold ${row.cashFlow < 0 ? 'text-rose-600' : 'text-emerald-600'}">
+                        ${row.cashFlow < 0 ? '-₹' + Math.abs(row.cashFlow).toLocaleString('en-IN') : '+₹' + Math.round(row.cashFlow).toLocaleString('en-IN')}
+                      </td>
+                      <td class="py-2 px-3 text-right font-mono text-amber-800">₹${Math.round(row.cumDividend).toLocaleString('en-IN')}</td>
+                      <td class="py-2 px-3 text-right font-mono font-semibold text-slate-900">₹${Math.round(row.fundValue).toLocaleString('en-IN')}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    /* ---------- EXPORT TO EXCEL ---------- */
+    function exportToExcel(reportIndex) {
+      const rep = lastGeneratedReports[reportIndex];
+      if (!rep) return;
+
+      const wb = XLSX.utils.book_new();
+
+      // Summary Sheet
+      const summaryData = [
+        ["Mutual Fund Dividend Cashflow Report"],
+        ["Scheme Name", rep.scheme.name],
+        ["Category", rep.scheme.category],
+        ["Inception Date", rep.scheme.inceptionDate],
+        ["Investment Start Date", rep.startDate],
+        ["Valuation Date", rep.endDate],
+        [""],
+        ["Initial Investment Amount (Rs)", rep.investAmount],
+        ["Start NAV (Rs)", rep.startNav],
+        ["Units Allotted", rep.units],
+        ["Current / Final NAV (Rs)", rep.endNav],
+        ["Current Fund Value (Rs)", rep.finalFundValue],
+        ["Total Dividends Received (Rs)", rep.totalDividends],
+        ["Total Value (Dividends + Valuation) (Rs)", rep.totalReturns],
+        ["Net Profit (Rs)", rep.netProfit],
+        ["Absolute Return (%)", rep.absReturn.toFixed(2) + "%"],
+        ["Annualized Return (XIRR %)", rep.xirr.toFixed(2) + "%"]
+      ];
+      const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
+      XLSX.utils.book_append_sheet(wb, wsSummary, "Summary");
+
+      // Cashflow Table Sheet
+      const cashflowRows = [
+        ["Date", "Transaction / Event", "NAV (Rs)", "Dividend Per Unit (Rs)", "Units Held", "Cash Flow (Rs)", "Cumulative Dividends (Rs)", "Fund Value (Rs)"]
+      ];
+      rep.detailedTableRows.forEach(r => {
+        cashflowRows.push([
+          r.date,
+          r.event,
+          r.nav,
+          r.divPerUnit !== null ? r.divPerUnit : "",
+          r.balanceUnits,
+          r.cashFlow,
+          r.cumDividend,
+          r.fundValue
+        ]);
+      });
+      const wsCashflow = XLSX.utils.aoa_to_sheet(cashflowRows);
+      XLSX.utils.book_append_sheet(wb, wsCashflow, "Cashflow Schedule");
+
+      const cleanName = rep.scheme.name.replace(/[^a-zA-Z0-9]/g, '_');
+      XLSX.writeFile(wb, `${cleanName}_Cashflow_Report.xlsx`);
+    }
+
+    /* ---------- EXPORT TO PDF ---------- */
+    function exportToPDF(reportIndex) {
+      const rep = lastGeneratedReports[reportIndex];
+      if (!rep) return;
+
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF('p', 'pt', 'a4');
+
+      // Title & Branding
+      doc.setFillColor(37, 99, 235);
+      doc.rect(0, 0, 595, 65, 'F');
+      
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text("Mutual Fund Dividend & Cashflow Statement", 40, 32);
+      
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Generated on: ${new Date().toLocaleDateString('en-IN')} | Period: ${rep.startDate} to ${rep.endDate}`, 40, 48);
+
+      // Scheme Details & Summary Cards
+      doc.setTextColor(15, 23, 42);
+      doc.setFontSize(13);
+      doc.setFont('helvetica', 'bold');
+      doc.text(rep.scheme.name, 40, 95);
+
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Category: ${rep.scheme.category} | Inception Date: ${rep.scheme.inceptionDate}`, 40, 110);
+
+      // Key Financial Metrics Table
+      const metrics = [
+        ["Initial Investment", `Rs. ${rep.investAmount.toLocaleString('en-IN')}`, "Units Held", rep.units.toFixed(2)],
+        ["Initial NAV", `Rs. ${rep.startNav.toFixed(2)}`, "Current NAV", `Rs. ${rep.endNav.toFixed(2)}`],
+        ["Total Dividends Recd", `Rs. ${Math.round(rep.totalDividends).toLocaleString('en-IN')}`, "Current Fund Value", `Rs. ${Math.round(rep.finalFundValue).toLocaleString('en-IN')}`],
+        ["Total Gain / Profit", `Rs. ${Math.round(rep.netProfit).toLocaleString('en-IN')}`, "Annualized XIRR Return", `${rep.xirr.toFixed(2)}%`]
+      ];
+
+      doc.autoTable({
+        startY: 122,
+        margin: { left: 40, right: 40 },
+        body: metrics,
+        theme: 'plain',
+        styles: { fontSize: 8.5, cellPadding: 3.5 },
+        columnStyles: {
+          0: { fontStyle: 'bold', textColor: [71, 85, 105], cellWidth: 130 },
+          1: { fontStyle: 'bold', textColor: [15, 23, 42], cellWidth: 125 },
+          2: { fontStyle: 'bold', textColor: [71, 85, 105], cellWidth: 130 },
+          3: { fontStyle: 'bold', textColor: [37, 99, 235], cellWidth: 130 }
+        }
+      });
+
+      // Cashflow Table
+      const tableHeaders = [["Date", "Transaction", "NAV", "Div/Unit", "Cash Flow", "Cum. Div", "Fund Value"]];
+      const tableData = rep.detailedTableRows.map(r => [
+        r.date,
+        r.event,
+        `Rs. ${r.nav.toFixed(2)}`,
+        r.divPerUnit !== null ? `Rs. ${r.divPerUnit.toFixed(2)}` : '-',
+        r.cashFlow < 0 ? `-Rs. ${Math.abs(r.cashFlow).toLocaleString('en-IN')}` : `+Rs. ${Math.round(r.cashFlow).toLocaleString('en-IN')}`,
+        `Rs. ${Math.round(r.cumDividend).toLocaleString('en-IN')}`,
+        `Rs. ${Math.round(r.fundValue).toLocaleString('en-IN')}`
+      ]);
+
+      doc.autoTable({
+        startY: doc.lastAutoTable.finalY + 15,
+        margin: { left: 40, right: 40 },
+        head: tableHeaders,
+        body: tableData,
+        theme: 'striped',
+        headStyles: { fillColor: [37, 99, 235], fontSize: 8, fontStyle: 'bold' },
+        styles: { fontSize: 7.5, cellPadding: 3 },
+        columnStyles: {
+          2: { halign: 'right' },
+          3: { halign: 'right' },
+          4: { halign: 'right', fontStyle: 'bold' },
+          5: { halign: 'right' },
+          6: { halign: 'right' }
+        }
+      });
+
+      const cleanName = rep.scheme.name.replace(/[^a-zA-Z0-9]/g, '_');
+      doc.save(`${cleanName}_Cashflow_Report.pdf`);
+    }
+
+    /* ---------- ADMIN AUTH & NAVIGATION ---------- */
+    function openAdminModal() {
+      if (isAdmin) {
+        switchView('admin');
+      } else {
+        document.getElementById('admin-login-modal').classList.remove('hidden');
+        document.getElementById('admin-password-input').focus();
+      }
+    }
+
+    function closeAdminModal() {
+      document.getElementById('admin-login-modal').classList.add('hidden');
+    }
+
+    function verifyAdminPassword() {
+      const pwd = document.getElementById('admin-password-input').value;
+      if (pwd === "admin123") {
+        isAdmin = true;
+        closeAdminModal();
+        document.getElementById('admin-btn-text').textContent = "Admin Mode (Active)";
+        document.getElementById('admin-mode-btn').classList.remove('bg-slate-100', 'text-slate-700');
+        document.getElementById('admin-mode-btn').classList.add('bg-emerald-100', 'text-emerald-800');
+        switchView('admin');
+      } else {
+        alert("Invalid PIN or password! (Default is: admin123)");
+      }
+    }
+
+    function logoutAdmin() {
+      isAdmin = false;
+      document.getElementById('admin-btn-text').textContent = "Admin Login";
+      document.getElementById('admin-mode-btn').classList.remove('bg-emerald-100', 'text-emerald-800');
+      document.getElementById('admin-mode-btn').classList.add('bg-slate-100', 'text-slate-700');
+      switchView('investor');
+    }
+
+    function switchView(view) {
+      if (view === 'admin' && !isAdmin) {
+        openAdminModal();
+        return;
+      }
+      if (view === 'admin') {
+        document.getElementById('investor-view').classList.add('hidden');
+        document.getElementById('admin-view').classList.remove('hidden');
+        renderAdminSchemesList();
+        renderNavPreviewTable();
+        renderDivPreviewTable();
+      } else {
+        document.getElementById('admin-view').classList.add('hidden');
+        document.getElementById('investor-view').classList.remove('hidden');
+        populateSchemeCheckboxes();
+        generateReport();
+      }
+    }
+
+    function switchAdminTab(tab) {
+      ['schemes', 'nav', 'dividends'].forEach(t => {
+        document.getElementById(`admin-panel-${t}`).classList.add('hidden');
+        document.getElementById(`admin-tab-${t === 'dividends' ? 'dividend' : t}`).classList.remove('tab-active');
+        document.getElementById(`admin-tab-${t === 'dividends' ? 'dividend' : t}`).classList.add('text-slate-500');
+      });
+      document.getElementById(`admin-panel-${tab}`).classList.remove('hidden');
+      const activeBtn = document.getElementById(`admin-tab-${tab === 'dividends' ? 'dividend' : tab}`);
+      activeBtn.classList.add('tab-active');
+      activeBtn.classList.remove('text-slate-500');
+    }
+
+    /* ---------- ADMIN DATA OPERATIONS ---------- */
+    function updateAdminSelects() {
+      const selects = [
+        'single-nav-scheme',
+        'bulk-nav-scheme',
+        'filter-nav-preview-scheme',
+        'single-div-scheme',
+        'bulk-div-scheme',
+        'filter-div-preview-scheme'
+      ];
+      selects.forEach(selId => {
+        const el = document.getElementById(selId);
+        if (!el) return;
+        const currentVal = el.value;
+        el.innerHTML = '';
+        appData.schemes.forEach(sch => {
+          const opt = document.createElement('option');
+          opt.value = sch.id;
+          opt.textContent = sch.name;
+          el.appendChild(opt);
+        });
+        if (currentVal && appData.schemes.some(s => s.id === currentVal)) {
+          el.value = currentVal;
+        }
+      });
+      document.getElementById('admin-scheme-count').textContent = appData.schemes.length;
+    }
+
+    function addScheme() {
+      const name = document.getElementById('new-scheme-name').value.trim();
+      const cat = document.getElementById('new-scheme-cat').value.trim() || 'Equity';
+      const incept = document.getElementById('new-scheme-inception').value || new Date().toISOString().split('T')[0];
+
+      if (!name) { alert("Please enter scheme name"); return; }
+
+      const newId = "sch-" + Date.now();
+      appData.schemes.push({
+        id: newId,
+        name: name,
+        category: cat,
+        inceptionDate: incept,
+        navs: [{ date: incept, nav: 10.0 }],
+        dividends: []
+      });
+
+      saveData();
+      updateAdminSelects();
+      renderAdminSchemesList();
+      populateSchemeCheckboxes();
+
+      document.getElementById('new-scheme-name').value = '';
+      document.getElementById('new-scheme-cat').value = '';
+      alert(`Scheme "${name}" added successfully!`);
+    }
+
+    function deleteScheme(id) {
+      if (confirm("Are you sure you want to delete this scheme and all its NAV/dividend history?")) {
+        appData.schemes = appData.schemes.filter(s => s.id !== id);
+        saveData();
+        updateAdminSelects();
+        renderAdminSchemesList();
+        populateSchemeCheckboxes();
+      }
+    }
+
+    function renderAdminSchemesList() {
+      const tbody = document.getElementById('admin-scheme-tbody');
+      tbody.innerHTML = '';
+      appData.schemes.forEach(s => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50 transition border-b border-slate-100";
+        tr.innerHTML = `
+          <td class="p-3 font-semibold text-slate-900">${s.name}</td>
+          <td class="p-3">${s.category}</td>
+          <td class="p-3 font-mono text-slate-500">${s.inceptionDate}</td>
+          <td class="p-3 font-mono">${(s.navs || []).length}</td>
+          <td class="p-3 font-mono">${(s.dividends || []).length}</td>
+          <td class="p-3 text-right">
+            <button onclick="deleteScheme('${s.id}')" class="text-rose-600 hover:text-rose-800 p-1 rounded hover:bg-rose-50" title="Delete Scheme">
+              <i data-lucide="trash-2" class="w-4 h-4"></i>
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+      lucide.createIcons();
+    }
+
+    function addSingleNAV() {
+      const schId = document.getElementById('single-nav-scheme').value;
+      const date = document.getElementById('single-nav-date').value;
+      const val = parseFloat(document.getElementById('single-nav-val').value);
+
+      if (!date || isNaN(val)) { alert("Please provide a valid date and NAV value!"); return; }
+
+      const sch = appData.schemes.find(s => s.id === schId);
+      if (!sch) return;
+
+      sch.navs = sch.navs.filter(n => n.date !== date);
+      sch.navs.push({ date, nav: val });
+      sch.navs.sort((a,b) => new Date(a.date) - new Date(b.date));
+
+      saveData();
+      renderNavPreviewTable();
+      alert(`NAV updated for ${sch.name} on ${date}!`);
+    }
+
+    function addSingleDividend() {
+      const schId = document.getElementById('single-div-scheme').value;
+      const date = document.getElementById('single-div-date').value;
+      const val = parseFloat(document.getElementById('single-div-val').value);
+
+      if (!date || isNaN(val)) { alert("Please provide a valid record date and dividend per unit!"); return; }
+
+      const sch = appData.schemes.find(s => s.id === schId);
+      if (!sch) return;
+
+      sch.dividends = (sch.dividends || []).filter(d => d.date !== date);
+      sch.dividends.push({ date, perUnit: val });
+      sch.dividends.sort((a,b) => new Date(a.date) - new Date(b.date));
+
+      saveData();
+      renderDivPreviewTable();
+      alert(`Dividend record added for ${sch.name} on ${date}!`);
+    }
+
+    /* ---------- BULK EXCEL IMPORTS ---------- */
+    function handleBulkNavImport() {
+      const schId = document.getElementById('bulk-nav-scheme').value;
+      const fileInput = document.getElementById('bulk-nav-file');
+      if (!fileInput.files.length) { alert("Please choose an Excel or CSV file!"); return; }
+
+      const sch = appData.schemes.find(s => s.id === schId);
+      if (!sch) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(firstSheet);
+
+        let count = 0;
+        rows.forEach(r => {
+          // Normalize column names
+          let date = r.Date || r.date || r.DATE;
+          let nav = r.NAV || r.nav || r.Nav || r.Value;
+          
+          if (date && nav) {
+            if (typeof date === 'number') {
+              // Handle Excel date integer
+              date = new Date(Math.round((date - 25569)*86400*1000)).toISOString().split('T')[0];
+            } else {
+              date = new Date(date).toISOString().split('T')[0];
+            }
+            sch.navs = sch.navs.filter(n => n.date !== date);
+            sch.navs.push({ date: date, nav: parseFloat(nav) });
+            count++;
+          }
+        });
+
+        sch.navs.sort((a,b) => new Date(a.date) - new Date(b.date));
+        saveData();
+        renderNavPreviewTable();
+        alert(`Successfully imported ${count} NAV records into ${sch.name}!`);
+      };
+      reader.readAsArrayBuffer(fileInput.files[0]);
+    }
+
+    function handleBulkDivImport() {
+      const schId = document.getElementById('bulk-div-scheme').value;
+      const fileInput = document.getElementById('bulk-div-file');
+      if (!fileInput.files.length) { alert("Please choose an Excel or CSV file!"); return; }
+
+      const sch = appData.schemes.find(s => s.id === schId);
+      if (!sch) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(firstSheet);
+
+        let count = 0;
+        sch.dividends = sch.dividends || [];
+        rows.forEach(r => {
+          let date = r.Date || r.date || r.RecordDate || r.DATE;
+          let perUnit = r.DividendPerUnit || r.perUnit || r.Dividend || r.Amount;
+          
+          if (date && perUnit) {
+            if (typeof date === 'number') {
+              date = new Date(Math.round((date - 25569)*86400*1000)).toISOString().split('T')[0];
+            } else {
+              date = new Date(date).toISOString().split('T')[0];
+            }
+            sch.dividends = sch.dividends.filter(d => d.date !== date);
+            sch.dividends.push({ date: date, perUnit: parseFloat(perUnit) });
+            count++;
+          }
+        });
+
+        sch.dividends.sort((a,b) => new Date(a.date) - new Date(b.date));
+        saveData();
+        renderDivPreviewTable();
+        alert(`Successfully imported ${count} Dividend records into ${sch.name}!`);
+      };
+      reader.readAsArrayBuffer(fileInput.files[0]);
+    }
+
+    function downloadSampleNavExcel() {
+      const ws = XLSX.utils.aoa_to_sheet([
+        ["Date", "NAV"],
+        ["2024-01-01", 35.50],
+        ["2024-02-01", 36.10],
+        ["2024-03-01", 37.25]
+      ]);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "NAV_Sample");
+      XLSX.writeFile(wb, "Sample_NAV_Template.xlsx");
+    }
+
+    function downloadSampleDivExcel() {
+      const ws = XLSX.utils.aoa_to_sheet([
+        ["Date", "DividendPerUnit"],
+        ["2024-03-15", 0.35],
+        ["2024-06-15", 0.40],
+        ["2024-09-15", 0.45]
+      ]);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Dividend_Sample");
+      XLSX.writeFile(wb, "Sample_Dividend_Template.xlsx");
+    }
+
+    function renderNavPreviewTable() {
+      const schId = document.getElementById('filter-nav-preview-scheme').value;
+      const tbody = document.getElementById('admin-nav-tbody');
+      tbody.innerHTML = '';
+      const sch = appData.schemes.find(s => s.id === schId);
+      if (!sch || !sch.navs) return;
+
+      const reversed = [...sch.navs].reverse();
+      reversed.forEach((n, idx) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="p-2.5">${n.date}</td>
+          <td class="p-2.5 text-right font-semibold">₹${n.nav.toFixed(4)}</td>
+          <td class="p-2.5 text-right">
+            <button onclick="removeNavEntry('${schId}', '${n.date}')" class="text-rose-500 hover:text-rose-700 text-[11px]">Delete</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function removeNavEntry(schId, date) {
+      const sch = appData.schemes.find(s => s.id === schId);
+      if (sch) {
+        sch.navs = sch.navs.filter(n => n.date !== date);
+        saveData();
+        renderNavPreviewTable();
+      }
+    }
+
+    function renderDivPreviewTable() {
+      const schId = document.getElementById('filter-div-preview-scheme').value;
+      const tbody = document.getElementById('admin-div-tbody');
+      tbody.innerHTML = '';
+      const sch = appData.schemes.find(s => s.id === schId);
+      if (!sch || !sch.dividends) return;
+
+      const reversed = [...sch.dividends].reverse();
+      reversed.forEach((d, idx) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="p-2.5">${d.date}</td>
+          <td class="p-2.5 text-right font-semibold text-amber-700">₹${d.perUnit.toFixed(4)}</td>
+          <td class="p-2.5 text-right">
+            <button onclick="removeDivEntry('${schId}', '${d.date}')" class="text-rose-500 hover:text-rose-700 text-[11px]">Delete</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function removeDivEntry(schId, date) {
+      const sch = appData.schemes.find(s => s.id === schId);
+      if (sch) {
+        sch.dividends = sch.dividends.filter(d => d.date !== date);
+        saveData();
+        renderDivPreviewTable();
+      }
+    }
+
+    /* ---------- BACKUP & RESTORE DATABASE JSON ---------- */
+    function exportDatabaseJSON() {
+      const blob = new Blob([JSON.stringify(appData, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `mutual_fund_database_${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function importDatabaseJSON(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          if (parsed && Array.isArray(parsed.schemes)) {
+            appData = parsed;
+            saveData();
+            updateAdminSelects();
+            renderAdminSchemesList();
+            renderNavPreviewTable();
+            renderDivPreviewTable();
+            populateSchemeCheckboxes();
+            alert("Database successfully restored from JSON file!");
+          } else {
+            alert("Invalid JSON format! Must contain a 'schemes' array.");
+          }
+        } catch (err) {
+          alert("Error parsing JSON file: " + err.message);
+        }
+      };
+      reader.readAsText(file);
+    }
+  </script>
+</body>
+</html>
